@@ -1,0 +1,6 @@
+AsciiComments:
+  Enabled: false
+Layout/LineLength:
+  Max: 120
+#Style/SafeNavigation:
+#  Enabled: false
