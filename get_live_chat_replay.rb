@@ -11,19 +11,15 @@ require 'fileutils'
 require 'optparse'
 require 'benchmark'
 
-def save_json_file(target_dir, video_id, json, json_file_counter)
-  # 未処理のチャットのjsonファイル #{target_dir}/#{video_id}/#{video_id}_raw_live_chat_#.json
-  json_file_dir = FileUtils.mkpath("#{target_dir}/#{video_id}").first
-  json_file_name = "#{video_id}_raw_live_chat_#{format('%<counter>03d', counter: json_file_counter)}.json"
-  json_file_path = File.join(json_file_dir, json_file_name)
-  File.open(json_file_path, 'w:UTF-8') do |output_file|
+def write_json_file(file_path, json)
+  FileUtils.mkpath(File.dirname(file_path))
+
+  File.open(file_path, 'w:UTF-8') do |output_file|
     output_file.write(JSON.pretty_generate(json))
   end
-
-  LOGGER.debug('write_json_file') { "write #{json_file_path}" }
 end
 
-def write_processed_file(processed_file, json)
+def process_and_write_file(processed_file, json)
   # この部分はjson掘り下げてチャットを抽出する
   chat_records = json.dig('response', 'continuationContents', 'liveChatContinuation', 'actions')
   chat_records&.each do |chat_record|
@@ -67,28 +63,35 @@ def write_processed_file(processed_file, json)
     when 'liveChatViewerEngagementMessageRenderer'
       # Youtubeのシステムメッセージ：
       # "チャットのリプレイがオンになっています。プレミア公開時に表示されたメッセージは、ここに表示されます。"
+    when 'liveChatPlaceholderItemRenderer'
+      # 消されたのコメント？
     else
       LOGGER.info { "unknown chat_type: #{chat_type}" }
     end
 
-    # 処理したチャットは #{target_dir}/#{video_id}.txt に書き込む
+    # 処理したチャットは #{output_dir}/#{video_id}.txt に書き込む
     processed_file.puts(chat_data.values.join(' ')) unless chat_data.empty?
   end
 rescue StandardError => e
   LOGGER.error { "#{e.class}: #{e.message}\n#{e.backtrace.join("\n")}" }
 end
 
-def get_live_chat_replay(url, target_dir)
-  uri = URI(url)
-  video_id = URI.decode_www_form(uri.query).to_h['v']
+def get_live_chat_replay(video_id, output_dir)
+  uri = URI("https://www.youtube.com/watch?v=#{video_id}")
 
-  LOGGER.info { "start get live chat replay, video url: #{url}" }
+  LOGGER.info { "start get live chat replay, video url: #{uri}" }
+
+  # パフォーマンス
+  html_parse_time = 0.0
+  request_time = 0.0
+  write_json_file_time = 0.0
+  process_and_write_file_time = 0.0
 
   # 未処理のチャットの.jsonファイル計数
   json_file_counter = 0
   # 処理したチャットの.txtファイル
-  FileUtils.mkpath(target_dir)
-  processed_file_path = File.join(target_dir, "#{video_id}.txt")
+  FileUtils.mkpath(output_dir)
+  processed_file_path = File.join(output_dir, "#{video_id}.txt")
 
   File.open(processed_file_path, 'w:UTF-8') do |processed_file|
     Net::HTTP.start(uri.host, uri.port, use_ssl: (uri.scheme == 'https')) do |http|
@@ -100,10 +103,13 @@ def get_live_chat_replay(url, target_dir)
         request['accept-language'] = 'ja'
 
         # httpレスポンスのステータスコードは2xxでなければ例外を投げる
-        response = http.request(request)
-        response.value
+        response = nil
+        request_time += Benchmark.realtime do
+          response = http.request(request)
+          response.value
+        end
 
-        LOGGER.debug('get_chat_replay') { "request_url: #{request.uri}" }
+        LOGGER.debug('get_chat_replay') { "request_url = #{request.uri}" }
 
         # チャットリプレイの取得は連続で以下のurlをGETでrequest
         # https://www.youtube.com/live_chat_replay/get_live_chat_replay?continuation=#{continuation}&pbj=1
@@ -119,34 +125,36 @@ def get_live_chat_replay(url, target_dir)
         if response.body.start_with?('<!doctype html>')
           LOGGER.debug('get_chat_replay') { 'get html page' }
 
-          doc = Nokogiri::HTML(response.body)
-          json_element = doc.xpath('//script').each do |script_node|
-            if script_node.content.include?('window["ytInitialData"]')
-              break script_node.content.scan(/"subMenuItems":\[.*?\]/).first
+          html_parse_time += Benchmark.realtime do
+            doc = Nokogiri::HTML(response.body)
+            json_element = doc.xpath('//script').each do |script_node|
+              if script_node.content.include?('window["ytInitialData"]')
+                break script_node.content.scan(/"subMenuItems":\[.*?\]/).first
+              end
             end
+            json = JSON.parse("{#{json_element}}")
+            continuation = json['subMenuItems'][1]['continuation']['reloadContinuationData']['continuation']
+            uri = URI("https://www.youtube.com/live_chat_replay/get_live_chat_replay?continuation=#{continuation}&pbj=1")
           end
-          json = JSON.parse("{#{json_element}}")
-          continuation = json['subMenuItems'][1]['continuation']['reloadContinuationData']['continuation']
-          uri = URI("https://www.youtube.com/live_chat_replay/get_live_chat_replay?continuation=#{continuation}&pbj=1")
-
-          LOGGER.debug('get_chat_replay') { "first continuation: '#{continuation}'" }
         else
           LOGGER.debug('get_chat_replay') { 'get live chat replay json' }
 
           json = JSON.parse(response.body)
 
           # 未処理のチャットを保存
-          save_json_file(target_dir, video_id, json, json_file_counter)
+          # 未処理のチャットのjsonファイル #{output_dir}/#{video_id}/#{video_id}_raw_live_chat_#.json
+          json_file_dir = File.join(output_dir, video_id)
+          json_file_name = "#{video_id}_raw_live_chat_#{format('%<counter>03d', counter: json_file_counter)}.json"
+          json_file_path = File.join(json_file_dir, json_file_name)
+          write_json_file_time += Benchmark.realtime { write_json_file(json_file_path, json) }
           json_file_counter += 1
           # チャットを処理して書き込む
-          write_processed_file(processed_file, json)
+          process_and_write_file_time += Benchmark.realtime { process_and_write_file(processed_file, json) }
 
           continuation = json.dig('response', 'continuationContents', 'liveChatContinuation', 'continuations', 0,
                                   'liveChatReplayContinuationData', 'continuation')
           if continuation
             uri = URI("https://www.youtube.com/live_chat_replay/get_live_chat_replay?continuation=#{continuation}&pbj=1")
-
-            LOGGER.debug('get_chat_replay') { "next continuation: '#{continuation}'" }
           else
             LOGGER.debug('get_chat_replay') { 'end of live chat replay' }
             break
@@ -156,12 +164,15 @@ def get_live_chat_replay(url, target_dir)
     end
   end
 
-  LOGGER.info { 'get live chat replay succeed' }
+  LOGGER.debug { "request time: #{request_time} sec" }
+  LOGGER.debug { "html parse time: #{html_parse_time} sec" }
+  LOGGER.debug { "write_json_file(): #{write_json_file_time} sec" }
+  LOGGER.debug { "process_and_write_file(): #{process_and_write_file_time} sec" }
 rescue StandardError => e
   LOGGER.error { "#{e.class}: #{e.message}\n#{e.backtrace.join("\n")}" }
 end
 
-def zip_dir(source_dir, delete_source_dir = true)
+def zip_dir(source_dir)
   files_path = Dir.glob("#{source_dir}/*")
   zip_file_path = "#{source_dir}.zip"
 
@@ -178,12 +189,24 @@ def zip_dir(source_dir, delete_source_dir = true)
   end
 
   # source dirを削除する
-  return unless delete_source_dir
-
   files_path.each do |file_path|
     File.delete(file_path)
   end
   Dir.delete(source_dir)
+
+  zip_file_path
+end
+
+def get_live_chat_replay_process(video_id, output_dir)
+  # アーカイブのチャットリプレイの取得を始める
+  get_live_chat_replay(video_id, output_dir)
+  zip_file_path = zip_dir(File.join(output_dir, video_id))
+
+  # zipしたファイルを #{output_dir}/raw に移動
+  move_path = FileUtils.mkpath(File.join(output_dir, 'raw')).first
+  FileUtils.mv(zip_file_path, move_path)
+
+  LOGGER.info { "get live chat replay succeed, video_id: #{video_id}" }
 end
 
 if $PROGRAM_NAME == __FILE__
@@ -191,29 +214,54 @@ if $PROGRAM_NAME == __FILE__
   params = {}
   OptionParser.new do |opts|
     opts.on('-d', '--debug', 'Debug mode switch')
-    opts.on('-o', '--output-dir [OUTPUT_DIR]', String, 'Output directory')
-    opts.on('-u', '--url URL', String, 'Youtube video url')
+    opts.on('-i', '--input INPUT', String, 'Allow 3 types input', '1. youtube video url',
+            '2. youtube video id', '3. output file of get_playlist_videos_info.rb')
+    opts.on('-o', '--output-dir [DIR]', String, 'Output directory, default is live_chat_replay/')
   end.parse!(into: params)
 
-  # ログファイルの設定
-  log_file = File.open("#{File.basename($PROGRAM_NAME, '.rb')}.log", 'w:UTF-8')
-  log_file.sync = true
-  log_level = params[:debug] ? :debug : :info
-  LOGGER = Logger.new(log_file, level: log_level)
-  LOGGER.info { "params: #{params}, program start" }
+  begin
+    # ログファイルの設定
+    # log/get_live_chat_replay.log
+    # debug modeでなければこのスクリプト実行する度にログファイルは上書きされる
+    log_file_path = File.join('log', "#{File.basename($PROGRAM_NAME, '.rb')}.log")
+    FileUtils.mkpath(File.dirname(log_file_path))
+    log_file = File.open(log_file_path, 'w:UTF-8')
+    log_file.sync = true
+    log_level = params[:debug] ? :debug : :info
+    LOGGER = Logger.new(log_file, level: log_level)
+    LOGGER.info { "params: #{params}, program start" }
 
-  # 引数の設定
-  target_dir = params[:"output-dir"] || 'live_chat_replay'
-  url = params[:url]
-  video_id = URI.decode_www_form(URI(url).query).to_h['v']
+    # 引数の設定
+    # デフォルトoutput_dirは live_chat_replay/
+    input = params[:input]
+    output_dir = params[:"output-dir"] || 'live_chat_replay'
 
-  # アーカイブのチャットリプレイの取得を始める
-  elapsed_time = Benchmark.realtime do
-    get_live_chat_replay(url, target_dir)
-    zip_dir(File.join(target_dir, video_id))
+    # main process
+    elapsed_time = Benchmark.realtime do
+      # inputはファイル
+      if File.exist?(input)
+        playlist_videos_info = JSON.parse(File.read(input))
+        playlist_videos_info['items'].each do |item|
+          video_id = item['id']
+          get_live_chat_replay_process(video_id, output_dir)
+        end
+        # inputはYoutube url, Youtube video id
+      else
+        video_id =
+          if input =~ URI::DEFAULT_PARSER.make_regexp
+            URI.decode_www_form(URI(input).query).to_h['v']
+          else
+            input
+          end
+        get_live_chat_replay_process(video_id, output_dir)
+      end
+    end
+
+    LOGGER.info { "elapsed time: #{elapsed_time} sec" }
+
+  rescue StandardError => e
+    LOGGER.error { "#{e.class}: #{e.message}\n#{e.backtrace.join("\n")}" }
   end
 
-  LOGGER.info { "elapsed time: #{elapsed_time} sec" }
-
-  # テスト: 'https://www.youtube.com/watch?v=S7qRc7SmMds'
+  # テスト: https://www.youtube.com/watch?v=S7qRc7SmMds
 end
