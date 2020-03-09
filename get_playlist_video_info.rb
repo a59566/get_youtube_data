@@ -35,16 +35,16 @@ if $PROGRAM_NAME == __FILE__
     s.list_playlist_items('contentDetails, snippet', max_results: 50, playlist_id: playlist_id, page_token: token)
   end
 
-  video_properties = { items: [] }
+  video_infos = []
 
   playlist_items.each do |item|
-    video_property = {}
-    video_property[:id] = item.content_details.video_id
-    video_property[:title] = item.snippet.title
-    video_property[:description] = item.snippet.description
-    video_property[:published_at] = item.content_details.video_published_at
+    video_info = {}
+    video_info[:id] = item.content_details.video_id
+    video_info[:title] = item.snippet.title
+    video_info[:description] = item.snippet.description
+    video_info[:published_at] = item.content_details.video_published_at
 
-    video_properties[:items].push(video_property)
+    video_infos.push(video_info)
   end
 
   FileUtils.mkpath(output_dir)
@@ -52,6 +52,6 @@ if $PROGRAM_NAME == __FILE__
   output_path = File.join(output_dir, output_file)
 
   File.open(output_path, 'w:UTF-8') do |file|
-    file.puts(JSON.pretty_generate(video_properties))
+    file.puts(JSON.pretty_generate(video_infos))
   end
 end
