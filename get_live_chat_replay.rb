@@ -225,7 +225,7 @@ if $PROGRAM_NAME == __FILE__
   # パラメータの解析
   params = {}
   OptionParser.new do |opts|
-    opts.on('-d', '--debug', 'Debug mode switch')
+    opts.on('-d', '--debug', 'Debug mode switch, will save raw data and log performance info')
     opts.on('-i', '--input INPUT', String, 'Allow 3 types input', '1. youtube video url',
             '2. youtube video id', '3. output file of get_playlist_video_info.rb')
     opts.on('-o', '--output-dir [DIR]', String, 'Output directory, default is live_chat_replay/')
