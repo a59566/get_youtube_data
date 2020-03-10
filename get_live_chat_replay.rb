@@ -257,7 +257,7 @@ if $PROGRAM_NAME == __FILE__
         playlist_id = File.basename(input, '.json')
         output_dir = File.join(output_dir, playlist_id)
 
-        playlist_video_infos = JSON.parse(File.read(input))
+        playlist_video_infos = JSON.parse(File.read(input))['video_infos']
         playlist_video_infos.each do |video_info|
           video_id = video_info['id']
           get_chat_replay_process(video_id, output_dir)

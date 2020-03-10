@@ -31,12 +31,19 @@ if $PROGRAM_NAME == __FILE__
     end
 
   # 結果を取得して #{output_dir}/#{play_list_id}.json に書き込む
+  # 再生リストの情報
+  playlist_resource = service.list_playlists('snippet', id: playlist_id).items.first
+  playlist_info = {}
+  playlist_info[:id] = playlist_resource.id
+  playlist_info[:title] = playlist_resource.snippet.title
+  playlist_info[:description] = playlist_resource.snippet.description
+  playlist_info[:published_at] = playlist_resource.snippet.published_at
+
+  # 再生リストの動画の情報
   playlist_items = service.fetch_all do |token, s|
     s.list_playlist_items('contentDetails, snippet', max_results: 50, playlist_id: playlist_id, page_token: token)
   end
-
   video_infos = []
-
   playlist_items.each do |item|
     video_info = {}
     video_info[:id] = item.content_details.video_id
@@ -47,11 +54,13 @@ if $PROGRAM_NAME == __FILE__
     video_infos.push(video_info)
   end
 
+  result = { playlist_info: playlist_info, video_infos: video_infos }
+
   FileUtils.mkpath(output_dir)
   output_file = "#{playlist_id}.json"
   output_path = File.join(output_dir, output_file)
 
   File.open(output_path, 'w:UTF-8') do |file|
-    file.puts(JSON.pretty_generate(video_infos))
+    file.puts(JSON.pretty_generate(result))
   end
 end
