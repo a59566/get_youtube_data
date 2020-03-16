@@ -12,7 +12,7 @@ $ cd get_youtube_data/
 $ bundle
 
 # Google API Key はスクリプトと同じディレクトリに youtube_api.key 書き込んでおく
-$ echo "Your Google API Key" > youtube_api.key
+$ printf "Your Google API Key" > youtube_api.key
 ```
 
 # 使い方
