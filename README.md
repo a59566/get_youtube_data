@@ -63,9 +63,9 @@ $ ruby get_comment.rb -h
       -o, --output-dir [DIR]           Output directory, default is comment/
 ```
 例:  
-`ruby get_comment.rb -i 'https://www.youtube.com/watch?v=Jby8IBtSJpc'`  
-`ruby get_comment.rb -i nBhBVB70Imk`  
-`ruby get_comment.rb -i playlist/PLK_65KbO9TBtkDTedvAA_Znt2Mu6ha73L.json`  
+`$ ruby get_comment.rb -i 'https://www.youtube.com/watch?v=Jby8IBtSJpc'`  
+`$ ruby get_comment.rb -i nBhBVB70Imk`  
+`$ ruby get_comment.rb -i playlist/PLK_65KbO9TBtkDTedvAA_Znt2Mu6ha73L.json`  
 どちらも使える  
   
 出力:  
@@ -102,7 +102,7 @@ $ ruby get_live_chat_replay.rb -h
       -o, --output-dir [DIR]           Output directory, default is live_chat_replay/
 ```
 例:  
-`ruby get_live_chat_replay.rb -i S7qRc7SmMds`  
+`$ ruby get_live_chat_replay.rb -i S7qRc7SmMds`  
   
 出力:  
 `live_chat_replay/S7qRc7SmMds_live_chat_replay.json`  
