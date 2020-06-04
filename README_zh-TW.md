@@ -1,12 +1,11 @@
-[中文README](https://github.com/a59566/get_youtube_data/blob/master/README_zh-TW.md)
-# Youtube Data 取得スクリプト
-`get_playlist_video_info.rb` : 再生リストの情報を取得、出力は以下二つのスクリプトの入力として利用できます  
-`get_comment.rb` : 動画のコメントを取得  
-`get_live_chat_replay.rb` : アーカイブのチャットリプレイを取得  
+# Youtube資訊取得script
+`get_playlist_video_info.rb` : 取得播放清單資訊、輸出可以給以下兩個script使用  
+`get_comment.rb` : 取得影片留言  
+`get_live_chat_replay.rb` : 取得重播的聊天室留言  
 
 # 事前準備
-`get_playlist_video_info.rb`と`get_comment.rb`は **Google API Key** が必要  
-Googleさんから取得してください  
+`get_playlist_video_info.rb`と`get_comment.rb`需要用到**Google API Key**    
+請自行向Google申請  
 ```
 $ git clone https://github.com/a59566/get_youtube_data.git
 $ cd get_youtube_data/
@@ -16,7 +15,7 @@ $ bundle
 $ printf "Your Google API Key" > youtube_api.key
 ```
 
-# 使い方
+# 使用方法
 ### get_playlist_video_info.rb
 ```
 $ ruby get_playlist_video_info.rb -h
@@ -28,10 +27,10 @@ $ ruby get_playlist_video_info.rb -h
 ```
 例:  
 `$ ruby get_playlist_video_info.rb -i 'https://www.youtube.com/playlist?list=PLK_65KbO9TBtkDTedvAA_Znt2Mu6ha73L'`  
-または  
+或者  
 `$ ruby get_playlist_video_info.rb -i PLK_65KbO9TBtkDTedvAA_Znt2Mu6ha73L`    
   
-出力:  
+輸出:  
 `playlist/PLK_65KbO9TBtkDTedvAA_Znt2Mu6ha73L.json`  
 ```
 {
@@ -67,9 +66,9 @@ $ ruby get_comment.rb -h
 `$ ruby get_comment.rb -i 'https://www.youtube.com/watch?v=Jby8IBtSJpc'`  
 `$ ruby get_comment.rb -i nBhBVB70Imk`  
 `$ ruby get_comment.rb -i playlist/PLK_65KbO9TBtkDTedvAA_Znt2Mu6ha73L.json`  
-どちらも使える  
+任選一種  
   
-出力:  
+輸出:  
 `comment/PLK_65KbO9TBtkDTedvAA_Znt2Mu6ha73L/YtU7yYS4JEI_comment.json`  
 ```
 [
@@ -105,7 +104,7 @@ $ ruby get_live_chat_replay.rb -h
 例:  
 `$ ruby get_live_chat_replay.rb -i S7qRc7SmMds`  
   
-出力:  
+輸出:  
 `live_chat_replay/S7qRc7SmMds_live_chat_replay.json`  
 ```
 [
@@ -124,7 +123,7 @@ $ ruby get_live_chat_replay.rb -h
   ...
 ```
   
-# 参考になった資料
+# 參考資料
 [PythonでYouTube Liveのアーカイブからチャット（コメント）を取得する](http://watagassy.hatenablog.com/entry/2018/10/06/002628)  
 [\[Python\] youtubeliveのアーカイブの見どころを特定する](https://qiita.com/okamoto950712/items/0d4736c7be251532a03f)
   
